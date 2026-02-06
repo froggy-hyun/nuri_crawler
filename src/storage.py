@@ -1,5 +1,6 @@
 import sqlite3
 import json
+from datetime import datetime, timedelta
 from src.config import DB_PATH
 from src.logger import get_logger
 
@@ -13,12 +14,14 @@ class Storage:
         self._init_schema()
 
     def _init_schema(self):
-        """스키마 정의: 공고번호 PK"""
+        """스키마 정의: 공고번호 PK, 상태 컬럼"""
         try:
             self.cursor.execute('''
                 CREATE TABLE IF NOT EXISTS bids (
                     bid_no TEXT PRIMARY KEY,
                     title TEXT,
+                    status TEXT,
+                    end_date TEXT,
                     raw_data JSON,
                     collected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -27,30 +30,57 @@ class Storage:
         except Exception as e:
             logger.info(f"   [DB에러] 초기화 실패: {e}")
 
-    def is_crawled(self, bid_no: str) -> bool:
-        """이미 수집된 공고인지 확인"""
+    def clean_old_data(self):
+        """마감일 지났거나 1개월 초과 데이터 삭제"""
         try:
-            self.cursor.execute("SELECT 1 FROM bids WHERE bid_no = ?", (bid_no,))
-            return self.cursor.fetchone() is not None
-        except Exception:
-            return False
+            now = datetime.now()
+            month_ago = (now - timedelta(days=30)).strftime("%Y-%m-%d %H:%M")
+            now_str = now.strftime("%Y-%m-%d %H:%M")
+            
+            # 마감일시가 지났거나(end_date < now) 수집한지 1달 넘은거 삭제
+            self.cursor.execute('''
+                DELETE FROM bids 
+                WHERE end_date < ? OR collected_at < ?
+            ''', (now_str, month_ago))
+            
+            deleted = self.cursor.rowcount
+            self.conn.commit()
+            if deleted > 0:
+                logger.info(f"   [정리] 만료/오래된 데이터 {deleted}건 삭제 완료")
+        except Exception as e:
+            logger.info(f"   [DB에러] 데이터 정리 실패: {e}")
+
+    def get_status(self, bid_no: str):
+        """DB에 저장된 상태 반환 (없으면 None)"""
+        try:
+            self.cursor.execute("SELECT status FROM bids WHERE bid_no = ?", (bid_no,))
+            res = self.cursor.fetchone()
+            return res[0] if res else None
+        except:
+            return None
+
+    def delete(self, bid_no: str):
+        """특정 공고 삭제"""
+        self.cursor.execute("DELETE FROM bids WHERE bid_no = ?", (bid_no,))
+        self.conn.commit()
 
     def save(self, data: dict):
         """데이터 저장"""
         try:
             bid_no = data.get('입찰공고번호', 'UNKNOWN')
             title = data.get('입찰공고명', 'No Title')
+            status = data.get('진행상태', '')
+            
+            # 마감일시 추출 (YYYY/MM/DD HH:MM)
+            end_date_str = data.get('입찰서접수마감일시', '')
             
             self.cursor.execute('''
-                INSERT OR IGNORE INTO bids (bid_no, title, raw_data)
-                VALUES (?, ?, ?)
-            ''', (bid_no, title, json.dumps(data, ensure_ascii=False)))
+                INSERT OR REPLACE INTO bids (bid_no, title, status, end_date, raw_data, collected_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (bid_no, title, status, end_date_str, json.dumps(data, ensure_ascii=False)))
             
             self.conn.commit()
-            if self.cursor.rowcount > 0:
-                logger.info(f"      [저장] DB 저장 완료: {bid_no}")
-            else:
-                logger.info(f"      [중복] 이미 수집된 공고: {bid_no}")
+            logger.info(f"      [저장] DB 저장 완료: {bid_no}")
                 
         except Exception as e:
             logger.info(f"      [DB에러] 저장 실패: {e}")
