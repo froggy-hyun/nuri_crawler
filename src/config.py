@@ -14,3 +14,4 @@ LOG_DIR.mkdir(exist_ok=True)
 TARGET_URL = "https://nuri.g2b.go.kr/"
 HEADLESS = False  # 브라우저 보임
 TIMEOUT = 30 * 1000  # 30초
+DB_PATH = DATA_DIR / "bids.db" # DB
