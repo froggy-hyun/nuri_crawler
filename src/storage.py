@@ -31,22 +31,27 @@ class Storage:
             logger.info(f"   [DB에러] 초기화 실패: {e}")
 
     def clean_old_data(self):
-        """마감일 지났거나 1개월 초과 데이터 삭제"""
+        """마감일 지났거나 1개월 초과 데이터 삭제 (단, 마감일이 빈 값인 경우는 날짜 비교 삭제 제외)"""
         try:
             now = datetime.now()
-            month_ago = (now - timedelta(days=30)).strftime("%Y-%m-%d %H:%M")
+            month_ago = (now - timedelta(days=31)).strftime("%Y-%m-%d %H:%M")
             now_str = now.strftime("%Y-%m-%d %H:%M")
             
-            # 마감일시가 지났거나(end_date < now) 수집한지 1달 넘은거 삭제
+            # 1. (end_date < now) AND (end_date != '') AND (end_date IS NOT NULL)
+            #    => 마감일이 존재하고, 현재 시간보다 과거인 경우만 삭제
+            # 2. OR (collected_at < month_ago)
+            #    => 수집한 지 1달이 넘은 데이터는 무조건 삭제
+            
             self.cursor.execute('''
                 DELETE FROM bids 
-                WHERE end_date < ? OR collected_at < ?
+                WHERE (end_date < ? AND end_date != '' AND end_date IS NOT NULL) 
+                   OR collected_at < ?
             ''', (now_str, month_ago))
             
             deleted = self.cursor.rowcount
             self.conn.commit()
             if deleted > 0:
-                logger.info(f"   [정리] 만료/오래된 데이터 {deleted}건 삭제 완료")
+                logger.info(f"   [정리] 만료(날짜확인됨)/오래된 데이터 {deleted}건 삭제 완료")
         except Exception as e:
             logger.info(f"   [DB에러] 데이터 정리 실패: {e}")
 
