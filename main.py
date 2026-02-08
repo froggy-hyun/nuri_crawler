@@ -2,8 +2,10 @@ import argparse
 import time
 import schedule
 import datetime
+import json
 from src.crawler import NuriCrawler
 from src.logger import get_logger
+from src.storage import Storage
 
 logger = get_logger("MAIN")
 
@@ -28,8 +30,8 @@ def main():
         "--mode", 
         type=str, 
         default="single", 
-        choices=["single", "interval", "cron"],
-        help="실행 모드 선택 (single: 1회 실행, interval: 주기적 반복, cron: 정해진 시간 실행)"
+        choices=["single", "interval", "cron", "export"],
+        help="실행 모드 (single: 1회, interval: 반복, cron: 예약, export: JSON파일추출)"
     )
     
     # 시간/간격 설정 값
@@ -87,6 +89,31 @@ def main():
         while True:
             schedule.run_pending()
             time.sleep(1)
+    
+    # 4. 데이터 추출 모드 (Export Mode)
+    elif args.mode == "export":
+        logger.info("=== [모드] DB 데이터 JSON 파일 추출 ===")
+        try:
+            storage = Storage()
+            all_data = storage.fetch_all()
+            storage.close()
+
+            if not all_data:
+                logger.info(">> 저장된 데이터가 없습니다.")
+                return
+
+            # 파일명 생성: YYYYMMDD_HHMMSS_nuri_bids.json
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{timestamp}_nuri_bids.json"
+
+            # JSON 파일 저장
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(all_data, f, ensure_ascii=False, indent=4)
+            
+            logger.info(f">> 추출 완료: {filename} (총 {len(all_data)}건)")
+            
+        except Exception as e:
+            logger.error(f"데이터 추출 중 오류 발생: {e}")
 
 if __name__ == "__main__":
     main()

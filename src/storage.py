@@ -90,6 +90,25 @@ class Storage:
         except Exception as e:
             logger.info(f"      [DB에러] 저장 실패: {e}")
 
+    def fetch_all(self):
+        """DB에 저장된 모든 데이터(raw_data) 반환"""
+        try:
+            self.cursor.execute("SELECT raw_data FROM bids ORDER BY collected_at DESC")
+            rows = self.cursor.fetchall()
+            
+            result = []
+            for row in rows:
+                if row[0]:
+                    try:
+                        # JSON 문자열을 파이썬 객체로 변환
+                        result.append(json.loads(row[0]))
+                    except:
+                        continue
+            return result
+        except Exception as e:
+            logger.info(f"   [DB에러] 전체 조회 실패: {e}")
+            return []
+
     def close(self):
         if self.conn:
             self.conn.close()

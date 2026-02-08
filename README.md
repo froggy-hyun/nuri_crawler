@@ -55,3 +55,11 @@ python main.py --mode cron --value "09:00"
 # 매일 오전 9시와 오후 6시에 실행
 python main.py --mode cron --value "09:00,18:00"
 ```
+
+### 4. 데이터 추출 (Export Mode)  
+현재 데이터베이스에 저장된 모든 데이터를 JSON 파일로 내보냅니다.  
+파일명은 YYYYMMDD_HHMMSS_nuri_bids.json 형식으로 생성됩니다.
+
+```bash
+python main.py --mode export
+```
