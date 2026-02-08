@@ -1,6 +1,7 @@
 import argparse
 import time
 import schedule
+import datetime
 from src.crawler import NuriCrawler
 from src.logger import get_logger
 
@@ -14,7 +15,10 @@ def run_crawler_job():
         crawler.run()
     except Exception as e:
         logger.error(f"작업 실행 중 오류 발생: {e}")
-    logger.info(">> 크롤링 작업 종료\n")
+    
+    # 작업 종료 로그 및 구분선 추가
+    logger.info(">> 크롤링 작업 종료")
+    logger.info("-" * 60 + "\n") 
 
 def main():
     parser = argparse.ArgumentParser(description="누리장터 입찰공고 수집기")
@@ -56,6 +60,10 @@ def main():
         
         schedule.every(minutes).minutes.do(run_crawler_job)
         
+        # 다음 실행 시간 안내
+        next_run = schedule.next_run()
+        logger.info(f"== 대기 중... 다음 실행: {next_run.strftime('%Y-%m-%d %H:%M:%S')} ==\n")
+        
         while True:
             schedule.run_pending()
             time.sleep(1)
@@ -71,6 +79,10 @@ def main():
 
         for t in target_times:
             schedule.every().day.at(t).do(run_crawler_job)
+
+        next_run = schedule.next_run()
+        if next_run:
+            logger.info(f"== 대기 중... 다음 실행: {next_run.strftime('%Y-%m-%d %H:%M:%S')} ==\n")
 
         while True:
             schedule.run_pending()
