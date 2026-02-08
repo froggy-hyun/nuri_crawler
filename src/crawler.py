@@ -77,12 +77,26 @@ class NuriCrawler:
 
         self._close_blocking_popups(page)
 
+        # [메뉴] 입찰공고 이동
+        menu1_selector = "#mf_wfm_gnb_wfm_gnbMenu_genDepth1_1_btn_menuLvl1"
         logger.info(">>> [메뉴] 입찰공고 이동")
-        page.click("#mf_wfm_gnb_wfm_gnbMenu_genDepth1_1_btn_menuLvl1", force=True)
-        time.sleep(0.5)
+        # 요소가 보일 때까지 대기 후 클릭
+        page.wait_for_selector(menu1_selector, state="visible", timeout=10000)
+        page.click(menu1_selector, force=True)
+        time.sleep(1.0) # 메뉴 펼쳐짐 대기
         
+        # [메뉴] 입찰공고목록 이동
+        menu3_selector = "#mf_wfm_gnb_wfm_gnbMenu_genDepth1_1_genDepth2_0_genDepth3_0_btn_menuLvl3"
         logger.info(">>> [메뉴] 입찰공고목록 이동")
-        page.click("#mf_wfm_gnb_wfm_gnbMenu_genDepth1_1_genDepth2_0_genDepth3_0_btn_menuLvl3", force=True)
+        
+        # wait_for_selector로 가시성 확보 시도
+        try:
+            page.wait_for_selector(menu3_selector, state="visible", timeout=5000)
+        except:
+            logger.info("   [주의] 하위 메뉴가 바로 보이지 않음. 강제 클릭 시도.")
+
+        # force=True로 가려진 상태여도 클릭 시도
+        page.click(menu3_selector, force=True)
         
         # 2. 필터 설정
         search_btn_selector = "#mf_wfm_container_btnS0001"
