@@ -3,6 +3,7 @@ import time
 import schedule
 import datetime
 import json
+import asyncio
 from src.crawler import NuriCrawler
 from src.logger import get_logger
 from src.storage import Storage
@@ -14,13 +15,22 @@ def run_crawler_job():
     logger.info(">> 스케줄러에 의해 크롤링 작업 시작")
     try:
         crawler = NuriCrawler()
-        crawler.run()
+        # 비동기 함수 실행을 위해 asyncio.run 사용
+        asyncio.run(crawler.run())
     except Exception as e:
         logger.error(f"작업 실행 중 오류 발생: {e}")
     
     # 작업 종료 로그 및 구분선 추가
     logger.info(">> 크롤링 작업 종료")
     logger.info("-" * 60 + "\n") 
+    
+    # 다음 실행 시간 로깅
+    try:
+        next_run = schedule.next_run()
+        if next_run:
+            logger.info(f"== 다음 실행 예정 시간: {next_run.strftime('%Y-%m-%d %H:%M:%S')} ==\n")
+    except:
+        pass
 
 def main():
     parser = argparse.ArgumentParser(description="누리장터 입찰공고 수집기")

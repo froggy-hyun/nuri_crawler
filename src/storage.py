@@ -64,10 +64,66 @@ class Storage:
         except:
             return None
 
+    def get_meta(self, bid_no: str):
+        """DB에 저장된 status, end_date 반환 (없으면 (None, None))"""
+        try:
+            self.cursor.execute("SELECT status, end_date FROM bids WHERE bid_no = ?", (bid_no,))
+            res = self.cursor.fetchone()
+            if not res:
+                return None, None
+            return res[0], res[1]
+        except:
+            return None, None
+
+    def update_end_date(self, bid_no: str, end_date_str: str):
+        """
+        end_date 업데이트 + raw_data 안에 '입찰서접수마감일시'가 없거나 빈 값이면 같이 업데이트.
+        상세 재수집 없이 '응찰 가능 데이터' 품질을 맞추기 위한 보정용.
+        """
+        try:
+            # raw_data 로드
+            self.cursor.execute("SELECT raw_data FROM bids WHERE bid_no = ?", (bid_no,))
+            res = self.cursor.fetchone()
+            raw = res[0] if res else None
+
+            updated_raw = None
+            if raw:
+                try:
+                    obj = json.loads(raw)
+                    # 키가 없거나 빈 값일 때만 보정
+                    if not obj.get("입찰서접수마감일시"):
+                        obj["입찰서접수마감일시"] = end_date_str
+                    updated_raw = json.dumps(obj, ensure_ascii=False)
+                except:
+                    updated_raw = raw  # 파싱 실패 시 원본 유지
+
+            if updated_raw is None:
+                # raw_data가 없는 케이스 대비
+                updated_raw = json.dumps({"입찰서접수마감일시": end_date_str}, ensure_ascii=False)
+
+            self.cursor.execute('''
+                UPDATE bids
+                   SET end_date = ?,
+                       raw_data = ?,
+                       collected_at = CURRENT_TIMESTAMP
+                 WHERE bid_no = ?
+            ''', (end_date_str, updated_raw, bid_no))
+
+            self.conn.commit()
+            logger.info(f"      [갱신] 마감일시(end_date) 업데이트 완료: {bid_no} -> {end_date_str}")
+            return True
+
+        except Exception as e:
+            logger.info(f"      [DB에러] 마감일시 업데이트 실패: {bid_no} ({e})")
+            return False
+
     def delete(self, bid_no: str):
         """특정 공고 삭제"""
-        self.cursor.execute("DELETE FROM bids WHERE bid_no = ?", (bid_no,))
-        self.conn.commit()
+        try:
+            self.cursor.execute("DELETE FROM bids WHERE bid_no = ?", (bid_no,))
+            self.conn.commit()
+        except Exception as e:
+            logger.info(f"      [DB에러] 삭제 실패: {bid_no} ({e})")
 
     def save(self, data: dict):
         """데이터 저장"""
