@@ -61,6 +61,7 @@
 
 ## 요구 사항 (Requirements)
 
+- **운영체제**: Mac
 - **Python**: 3.9.6 이상
 - **라이브러리**
   - `playwright==1.58.0`
